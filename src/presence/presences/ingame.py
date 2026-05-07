@@ -1,5 +1,6 @@
 from .ingame_presences.session import Game_Session
 from .ingame_presences.range import Range_Session
+from ...utilities.logging import Logger
 from valclient.exceptions import PhaseError
 
 def presence(rpc,client=None,data=None,content_data=None,config=None):
@@ -7,16 +8,23 @@ def presence(rpc,client=None,data=None,content_data=None,config=None):
         coregame = client.coregame_fetch_player()
 
         if coregame is not None:
-            match_id = coregame["MatchID"]
-            if data["provisioningFlow"] != "ShootingRange":
+            match_id = coregame.get("MatchID")
+            if not match_id:
+                return
+            match_data = data.get("matchPresenceData", {}) if data else {}
+            provisioning_flow = match_data.get("provisioningFlow") or data.get("provisioningFlow", "") if data else ""
+            
+            if provisioning_flow != "ShootingRange":
                 try:
                     session = Game_Session(rpc,client,data,match_id,content_data,config)
                     session.main_loop()
-                except:
-                    pass
+                except Exception:
+                    Logger.exception("Unable to update game session presence")
             else:
                 session = Range_Session(rpc,client,data,match_id,content_data,config)
                 session.main_loop()
 
-    except PhaseError:
-        pass
+    except PhaseError as e:
+        Logger.debug(f"Ingame phase unavailable: {e}")
+    except Exception:
+        Logger.exception("Unable to update ingame presence")

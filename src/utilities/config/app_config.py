@@ -1,142 +1,202 @@
-import json, os
-from valclient.client import Client 
+import copy
+import json
+import os
+import time
+from json import JSONDecodeError
+
+from valclient.client import Client
 
 from ..filepath import Filepath
-
+from ..logging import Logger
 from ...localization.locales import Locales
-from ...localization.localization import Localizer
 
-default_config = {
-    "version": "v3.2.3",
-    "region": ["",Client.fetch_regions()],
-    "client_id": 811469787657928704,
-    "presence_refresh_interval": 3,
-    "locale": ["",[locale for locale,data in Locales.items() if data != {}]],
-    "presences": {
-        "menu": {
-            "show_rank_in_comp_lobby": True,
-            #"show_join_button_with_open_party": True,
-            #"allow_join_requests": False,
-        },
-        "modes": {
-            "all": {
-                "small_image": ["agent",["rank","agent","map"]],
-                "large_image": ["map",["rank","agent","map"]],
+
+APP_VERSION = "v3.2.7"
+FALLBACK_REGIONS = ["na", "eu", "ap", "kr", "latam", "br"]
+
+
+def fetch_regions():
+    try:
+        return Client.fetch_regions()
+    except Exception:
+        Logger.exception("Unable to fetch Valorant regions")
+        return FALLBACK_REGIONS
+
+
+def build_default_config():
+    return {
+        "version": APP_VERSION,
+        "region": ["", fetch_regions()],
+        "client_id": 811469787657928704,
+        "presence_refresh_interval": 3,
+        "locale": ["", [locale for locale, data in Locales.items() if data != {}]],
+        "presences": {
+            "menu": {
+                "show_rank_in_comp_lobby": True,
+                "show_join_button_with_open_party": False,
+                "allow_join_requests": False,
             },
-            "range": {
-                "show_rank_in_range": False,
-            }
-        }
-    },
-    "startup": {
-        "game_launch_timeout": 50,
-        "presence_timeout": 60,
-        "show_github_link": True,
-        "auto_launch_skincli": True,
-    },
-}
+            "modes": {
+                "all": {
+                    "small_image": ["agent", ["rank", "agent", "map"]],
+                    "large_image": ["map", ["rank", "agent", "map"]],
+                },
+                "range": {
+                    "show_rank_in_range": False,
+                },
+            },
+        },
+        "startup": {
+            "game_launch_timeout": 50,
+            "presence_timeout": 60,
+            "show_github_link": True,
+            "auto_launch_skincli": True,
+            "update_repository": "",
+        },
+        "webserver": {
+            "port": 4100,
+        },
+    }
+
+
+default_config = build_default_config()
+
 
 class Config:
 
     @staticmethod
+    def config_path():
+        return Filepath.get_path(os.path.join(Filepath.get_appdata_folder(), "config.json"))
+
+    @staticmethod
+    def ensure_config_folder():
+        os.makedirs(Filepath.get_appdata_folder(), exist_ok=True)
+
+    @staticmethod
+    def copy_default_config():
+        config = copy.deepcopy(default_config)
+        config["region"][1] = fetch_regions()
+        return config
+
+    @staticmethod
     def fetch_config():
+        config_path = Config.config_path()
         try:
-            with open(Filepath.get_path(os.path.join(Filepath.get_appdata_folder(), "config.json"))) as f:
+            with open(config_path, encoding="utf-8") as f:
                 config = json.load(f)
-                return config
-        except:
+        except FileNotFoundError:
             return Config.create_default_config()
+        except JSONDecodeError:
+            Config.backup_invalid_config(config_path)
+            return Config.create_default_config()
+        except OSError:
+            Logger.exception("Unable to read config file")
+            raise
+
+        if not isinstance(config, dict):
+            Config.backup_invalid_config(config_path)
+            return Config.create_default_config()
+
+        return config
+
+    @staticmethod
+    def backup_invalid_config(config_path):
+        if not os.path.exists(config_path):
+            return
+
+        backup_path = f"{config_path}.invalid-{int(time.time())}"
+        try:
+            os.replace(config_path, backup_path)
+            Logger.debug(f"Backed up invalid config to {backup_path}")
+        except OSError:
+            Logger.exception("Unable to back up invalid config")
 
     @staticmethod
     def modify_config(new_config):
-        with open(Filepath.get_path(os.path.join(Filepath.get_appdata_folder(), "config.json")), "w") as f:
-            json.dump(new_config, f)
+        Config.ensure_config_folder()
+        with open(Config.config_path(), "w", encoding="utf-8") as f:
+            json.dump(new_config, f, indent=2, ensure_ascii=False)
 
         return Config.fetch_config()
 
     @staticmethod
     def check_config():
-        # ???????
-        # my brain hurts
-        # i bet theres a way better way to write this but im just braindead
-        config = Config.fetch_config()
-        unlocalized_config = Config.localize_config(config,True)
-        
-        def check_for_new_vars(blank,current):
-            for key,value in blank.items():
-                if not key in current.keys():
-                    current[key] = value
-                if type(value) != type(current[key]):
-                    # if type of option is changed
-                    current[key] = value
-                if key == "version": 
-                    # version can't be changed by the user lmao
-                    current[key] = value
-                if key == "region": 
-                    current[key][1] = Client.fetch_regions() # update regions jic ya know
-                if isinstance(value,list):
-                    current[key][0] = current[key][0]
-                    current[key][1] = blank[key][1]
-                    if not current[key][0] in blank[key][1]:
-                        current[key][0] = blank[key][0]
-                if isinstance(value,dict):
-                    check_for_new_vars(value,current[key])
-            return current
-            
-        def remove_unused_vars(blank,current):
-            def check(bl,cur):
-                for key,value in list(cur.items()):
-                    if not key in bl.keys():
-                        del cur[key]
-                    if isinstance(value,dict) and key in list(cur.keys()):
-                        check(bl[key],value)
+        migrated_config = Config.localize_config(Config.fetch_config(), True)
+        default = Config.copy_default_config()
 
-            check(blank,current)
+        def merge(blank, current, key_name=None):
+            if key_name == "version":
+                return copy.deepcopy(blank)
+
+            if isinstance(blank, dict):
+                if not isinstance(current, dict):
+                    current = {}
+
+                merged = {}
+                for key, value in blank.items():
+                    merged[key] = merge(value, current.get(key), key)
+                return merged
+
+            if isinstance(blank, list):
+                default_choice = blank[0] if blank else None
+                default_options = copy.deepcopy(blank[1]) if len(blank) > 1 else []
+
+                current_choice = current[0] if isinstance(current, list) and current else default_choice
+                if current_choice not in default_options:
+                    current_choice = default_choice
+
+                return [current_choice, default_options]
+
+            if not isinstance(current, type(blank)):
+                return copy.deepcopy(blank)
+
             return current
 
-        unlocalized_config = check_for_new_vars(default_config,unlocalized_config)
-        unlocalized_config = remove_unused_vars(default_config,unlocalized_config)
-        config = Config.localize_config(unlocalized_config)
+        config = merge(default, migrated_config)
         Config.modify_config(config)
         return config
 
+    @staticmethod
+    def localize_config(config, unlocalize=False):
+        if not unlocalize:
+            return config
+
+        def migrate_value(value):
+            if isinstance(value, dict):
+                migrated = {}
+                for key, child in value.items():
+                    migrated[Config.unlocalize_key_any_locale(key)] = migrate_value(child)
+                return migrated
+
+            if isinstance(value, list):
+                migrated = copy.deepcopy(value)
+                if migrated and isinstance(migrated[0], str):
+                    migrated[0] = Config.unlocalize_key_any_locale(migrated[0])
+                if len(migrated) > 1 and isinstance(migrated[1], list):
+                    migrated[1] = [
+                        Config.unlocalize_key_any_locale(option) if isinstance(option, str) else option
+                        for option in migrated[1]
+                    ]
+                return migrated
+
+            return value
+
+        return migrate_value(config)
 
     @staticmethod
-    def localize_config(config,unlocalize=False):
-        def check(blank,current):
-            for key,value in list(blank.items() if not unlocalize else current.items()):
-                new_key = Localizer.get_config_key(key) if not unlocalize else Localizer.unlocalize_key(key)
-                if new_key != key:
-                    if unlocalize:
-                        current[new_key] = current[key]
-                        del current[key]
-                    else:
-                        #print(current[key])
-                        current[new_key] = current[key]
-                        del current[key]
+    def unlocalize_key_any_locale(key):
+        for data in Locales.values():
+            if not data or "config" not in data:
+                continue
 
-                if isinstance(value,list):
-                    if not unlocalize:
-                        new_options = [Localizer.get_config_key(x) for x in value[1]]
-                        current[new_key][0] = Localizer.get_config_key(current[new_key][0])
-                        current[new_key][1] = new_options
+            for internal_key, localized_key in data["config"].items():
+                if key == localized_key:
+                    return internal_key
 
-                    else:
-                        new_options = [Localizer.unlocalize_key(x) for x in value[1]]
-                        unlocalized = Localizer.unlocalize_key(current[new_key][0])
-                        value[0] = unlocalized
-                        value[1] = new_options
-                
-                if isinstance(value,dict):
-                    check(value,current[new_key])
-
-        check(default_config,config)
-        return config
+        return key
 
     @staticmethod
     def create_default_config():
-        if not os.path.exists(Filepath.get_appdata_folder()):
-            os.mkdir(Filepath.get_appdata_folder())
-        with open(Filepath.get_path(os.path.join(Filepath.get_appdata_folder(), "config.json")), "w") as f:
-            json.dump(default_config, f)
-        return Config.fetch_config()
+        config = Config.copy_default_config()
+        Config.modify_config(config)
+        return config

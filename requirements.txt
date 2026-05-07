@@ -1,15 +1,11 @@
-urllib3
 iso8601
-Flask_Cors
 requests
 pypresence
 valclient
 pystray
-pyperclip
 cursor
 psutil
 Flask
 InquirerPy
 Pillow
 PyInstaller
-websockets

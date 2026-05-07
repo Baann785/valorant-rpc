@@ -20,3 +20,8 @@ class Logger:
     def debug(data):
         logger = logging.getLogger('rpc')
         logger.debug(data)
+
+    @staticmethod
+    def exception(message):
+        logger = logging.getLogger('rpc')
+        logger.exception(message)

@@ -1,12 +1,12 @@
 from PIL import Image
 from pystray import Icon as icon, Menu as menu, MenuItem as item
-import ctypes, os, urllib.request, sys, time, pyperclip
+import ctypes, os, sys, time
 from InquirerPy.utils import color_print
 
 from .filepath import Filepath
 from .config.modify_config import Config_Editor
+from .logging import Logger
 from ..localization.localization import Localizer
-from ..presence.presence_utilities import Utilities
 
 kernel32 = ctypes.WinDLL('kernel32')
 user32 = ctypes.WinDLL('user32')
@@ -17,9 +17,11 @@ window_shown = False
 
 class Systray:
 
-    def __init__(self, client, config):
+    def __init__(self, client, config, on_exit=None):
         self.client = client
         self.config = config
+        self.on_exit = on_exit
+        self.systray = None
 
     def run(self):
         global window_shown
@@ -28,7 +30,6 @@ class Systray:
         systray_menu = menu(
             item('show window', Systray.tray_window_toggle, checked=lambda item: window_shown),
             item('config', Systray.modify_config),
-            #item('copy join link', self.copy_join_link),
             item('reload', Systray.restart),
             item('exit', self.exit)
         )
@@ -36,19 +37,24 @@ class Systray:
         self.systray.run()
 
     def exit(self):
-        self.systray.visible = False
-        self.systray.stop()
-        try:
-            os._exit(1)
-        except:
-            pass
-
-    def copy_join_link(self):
-        pyperclip.copy(Utilities.get_join_state(self.client,self.config)[0]["url"])
+        if self.systray is not None:
+            self.systray.visible = False
+            self.systray.stop()
+        if self.on_exit is not None:
+            self.on_exit()
 
     @staticmethod
     def generate_icon():
-        urllib.request.urlretrieve('https://raw.githubusercontent.com/colinhartigan/valorant-rpc/v2/favicon.ico',Filepath.get_path(os.path.join(Filepath.get_appdata_folder(),'favicon.ico')))
+        icon_path = Filepath.get_path(os.path.join(Filepath.get_appdata_folder(),'favicon.ico'))
+        if os.path.exists(icon_path):
+            return
+
+        bundled_icon = Filepath.get_path("favicon.ico")
+        if os.path.exists(bundled_icon):
+            with open(bundled_icon, "rb") as source, open(icon_path, "wb") as target:
+                target.write(source.read())
+        else:
+            Logger.debug("Bundled systray icon not found")
 
     @staticmethod 
     def modify_config():
@@ -62,8 +68,15 @@ class Systray:
     @staticmethod
     def restart():
         user32.ShowWindow(hWnd, 1)
-        os.system('cls' if os.name == 'nt' else 'clear')
-        os.execl(sys.executable, os.path.abspath(__file__), *sys.argv) 
+        sys.stdout.write("\033c")
+        sys.stdout.flush()
+        if getattr(sys, "frozen", False):
+            restart_args = [sys.executable, *sys.argv[1:]]
+        else:
+            entrypoint = sys.argv[0] if sys.argv and sys.argv[0] else os.path.join(os.path.dirname(__file__), "..", "..", "main.py")
+            restart_args = [sys.executable, os.path.abspath(entrypoint), *sys.argv[1:]]
+
+        os.execl(sys.executable, *restart_args)
 
     @staticmethod
     def tray_window_toggle(icon,item):
@@ -74,5 +87,5 @@ class Systray:
                 user32.ShowWindow(hWnd, 1)
             else:
                 user32.ShowWindow(hWnd, 0)
-        except Exception as e:
-            pass # oh no! bad python practices! 
+        except Exception:
+            Logger.exception("Unable to toggle tray window")

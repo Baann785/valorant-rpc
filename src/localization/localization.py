@@ -1,5 +1,7 @@
 from InquirerPy import inquirer
+
 from .locales import Locales
+
 
 class Localizer:
 
@@ -8,59 +10,81 @@ class Localizer:
 
     @staticmethod
     def get_localized_text(*keys):
-
-        def get_default(*keys):
-            localized = Locales["en-US"]
-            for key in keys:
-                localized = localized.get(key)
+        localized = Localizer.get_nested_value(Locales.get(Localizer.locale), *keys)
+        if localized is not None:
             return localized
 
-        try:
-            localized = Locales[Localizer.locale]
-            for key in keys:
-                if localized is None:
-                    get_default(*keys)
-                localized = localized.get(key)
-            if localized is not None:
-                return localized
-        except:
-            return get_default(*keys)
+        return Localizer.get_nested_value(Locales.get("en-US"), *keys)
 
+    @staticmethod
+    def get_nested_value(data, *keys):
+        result = data
+        for key in keys:
+            if isinstance(result, dict):
+                result = result.get(key)
+                continue
+
+            if isinstance(result, (list, tuple)) and isinstance(key, int):
+                if key < 0 or key >= len(result):
+                    return None
+                result = result[key]
+                continue
+
+            return None
+        return result
 
     @staticmethod
     def get_config_key(key):
-        try:
-            for k,value in Locales[Localizer.locale]["config"].items():
-                #print(f"{k}/{value}")
-                if k == key:
-                    return value
-            return key
-        except:
-            return key
+        config_labels = Locales.get(Localizer.locale, {}).get("config", {})
+        return config_labels.get(key, key)
 
     @staticmethod
     def unlocalize_key(key):
-        for k,value in Locales[Localizer.locale]["config"].items():
-            #print(f"{k}/{value}")
-            if value == key:
-                return k
+        for internal_key, localized_key in Locales.get(Localizer.locale, {}).get("config", {}).items():
+            if localized_key == key:
+                return internal_key
         return key
 
     @staticmethod
     def get_config_value(*keys):
+        result = Localizer.get_nested_value(Localizer.config, *keys)
+        if result is not None:
+            return result
+
         localized_keys = [Localizer.get_config_key(key) for key in keys]
-        result = Localizer.config
-        for key in localized_keys:
-            result = result[key]
-        return result
+        result = Localizer.get_nested_value(Localizer.config, *localized_keys)
+        if result is not None:
+            return result
+
+        raise KeyError(".".join(str(key) for key in keys))
+
+    @staticmethod
+    def get_config_value_or(default, *keys):
+        try:
+            return Localizer.get_config_value(*keys)
+        except (KeyError, TypeError):
+            return default
 
     @staticmethod
     def set_locale(config):
-        for locale,data in Locales.items():
-            if data != {}:
-                for key,value in data["config"].items():
-                    if key == "locale" and value in config.keys():
-                        Localizer.locale = config[value][0]
+        if not isinstance(config, dict):
+            return
+
+        if isinstance(config, dict) and "locale" in config:
+            locale = config["locale"][0]
+            if locale in Locales and Locales[locale] != {}:
+                Localizer.locale = locale
+                return
+
+        for data in Locales.values():
+            if not data or "config" not in data:
+                continue
+            localized_locale_key = data["config"].get("locale")
+            if localized_locale_key in config:
+                locale = config[localized_locale_key][0]
+                if locale in Locales and Locales[locale] != {}:
+                    Localizer.locale = locale
+                    return
 
     @staticmethod
     def prompt_locale(config):
@@ -68,11 +92,11 @@ class Localizer:
         current = locale[0]
         options = locale[1]
         choice = inquirer.select(
-            message=f"select your locale (language)",
+            message="select your locale (language)",
             default=current,
-            choices={option:option for option in options},
-            pointer=">"
+            choices={option: option for option in options},
+            pointer=">",
         )
         choice = choice.execute()
-        locale[0] = choice 
+        locale[0] = choice
         return config

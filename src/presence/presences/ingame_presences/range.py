@@ -3,6 +3,7 @@ import time
 from ..menu_presences.away import presence as away
 from ...presence_utilities import Utilities
 from ....localization.localization import Localizer
+from ....utilities.logging import Logger
 
 class Range_Session:
 
@@ -14,22 +15,29 @@ class Range_Session:
         self.match_id = match_id  
         self.puuid = self.client.puuid
 
-        data["MapID"] = "/Game/Maps/Poveglia/Range" # hotfix :)
+        data = dict(data or {})
+        data["MapID"] = "/Game/Maps/Poveglia/Range"
         self.start_time = time.time()
-        self.map_name, self.mode_name = Utilities.fetch_map_data(data, content_data)
-        self.map_image = "splash_range"
-        self.small_image = "mode_unrated"
-        self.small_text = None
+        self.map_image, self.map_name, self.mode_name = Utilities.fetch_map_data(data, content_data)
+        self.small_image, self.small_text = Utilities.fetch_mode_data({"queueId": "unrated"}, content_data)
+        if not self.mode_name:
+            self.mode_name = "Range"
 
         if Localizer.get_config_value("presences","modes","range","show_rank_in_range"):
             self.small_image, self.small_text = Utilities.fetch_rank_data(self.client,self.content_data)
 
     def main_loop(self):
         presence = self.client.fetch_presence()
-        while presence is not None and presence["sessionLoopState"] == "INGAME":
+        match_data = presence.get("matchPresenceData", {}) if presence else {}
+        session_state = match_data.get("sessionLoopState") or presence.get("sessionLoopState", "") if presence else ""
+        
+        while presence is not None and session_state == "INGAME":
             try:
                 presence = self.client.fetch_presence()
-                is_afk = presence["isIdle"]
+                match_data = presence.get("matchPresenceData", {}) if presence else {}
+                session_state = match_data.get("sessionLoopState") or presence.get("sessionLoopState", "") if presence else ""
+                
+                is_afk = presence.get("isIdle", False) if presence else False
                 if is_afk:
                     away(self.rpc,self.client,presence,self.content_data,self.config)  
                 else:
@@ -44,9 +52,10 @@ class Range_Session:
                         small_image=self.small_image,
                         small_text=self.small_text,
                         party_size=party_size,
-                        party_id=presence["partyId"],
+                        party_id=presence.get("partyId", "") if presence else "",
                     )
 
-                time.sleep(Localizer.get_config_value("presence_refresh_interval"))
-            except:
+                time.sleep(Localizer.get_config_value_or(3, "presence_refresh_interval"))
+            except Exception:
+                Logger.exception("Unable to update range presence")
                 return

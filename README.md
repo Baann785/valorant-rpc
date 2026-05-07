@@ -1,85 +1,165 @@
+# Valorant Discord Rich Presence
+
 ```
- _   _____   __   ____  ___  ___   _  ________                
+ _   _____   __   ____  ___  ___   _  ________
 | | / / _ | / /  / __ \/ _ \/ _ | / |/ /_  __/__________  ____
 | |/ / __ |/ /__/ /_/ / , _/ __ |/    / / / /___/ __/ _ \/ __/
-|___/_/ |_/____/\____/_/|_/_/ |_/_/|_/ /_/     /_/ / .__/\__/ 
-                                                  /_/         
+|___/_/ |_/____/\____/_/|_/_/ |_/_/|_/ /_/     /_/ / .__/\__/
+                                                   /_/
 ```
-[![Discord][discord-shield]][discord-url]
-[![Stars][stars-shield]][stars-url]
-[![Releases][releases-shield]][releases-url]
-[![Kofi][kofi-shield]][kofi-url]
-[![Language][language-shield]][language-url]
-[![License][license-shield]][license-url]
 
-  <ol>  
-    <li><a href="#about">About</li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#support">Support</a></li>
-    <li><a href="#disclaimer">Disclaimer</a></li>
-  </ol>
- 
- 
-## About
+**Current version:** `v3.2.7`
 
+Maintained fork of the original [valorant-rpc](https://github.com/colinhartigan/valorant-rpc) project. The original repository has been archived; this fork keeps the app working with current Valorant API behavior.
 
- Valorant RPC (Rich Presence) allows you to show in-game details such as the current score in your Discord Profile! Additional features include showing current map, agent, idle status, etc.
+## Features
 
- 
- <a>
-    <img src="assets/Demo1.png" alt="Demo" width="205" height="112">
-    <img src="assets/Demo2.png" alt="Demo" width="205" height="112">
+- Real-time Discord Rich Presence for VALORANT
+- Current state, map, agent, mode, party state, queue timer, and score
+- Competitive rank display when enabled
+- Valorant-API image URLs for agents, maps, ranks, and modes
+- Local cached Valorant content fallback when the network is unavailable
+- Optional secured local join/request confirmation flow
+- Windows tray icon with config, reload, show/hide window, and exit actions
 
- </a>
+## Screenshots
 
- 
- 
-## Installation
+<img src="assets/Demo1.png" alt="Valorant RPC demo 1" width="205" height="112">
+<img src="assets/Demo2.png" alt="Valorant RPC demo 2" width="205" height="112">
 
- - Download the latest [release](https://github.com/colinhartigan/valorant-rpc/releases/latest/download/valorant-rpc.exe) and run it.
+## Requirements
 
- 
- 
-## Usage
+- Windows
+- Python 3.10+
+- Discord desktop app
+- VALORANT / Riot Client
 
- - Run the program instead of launching VALORANT
-     - If VALORANT is not running, the program will launch it for you
- - If VALORANT is already running, launch the program and the presence will start
+## Install And Run
 
+```powershell
+python -m pip install -r requirements.txt
+python main.py
+```
 
- 
-## Support
+Recommended manual test flow:
 
- Either make an issue or:  
+1. Start Discord.
+2. Start VALORANT or let the app launch it.
+3. Run `python main.py`.
+4. Confirm the Discord profile shows your VALORANT status.
+5. Use the tray icon to reload, edit config, or exit.
 
-[![Discord Banner 2][discord-banner]][discord-url]
- 
- 
- 
-## Disclaimer 
+## Configuration
 
- This project is not affiliated with Riot Games or any of its employees and therefore does not reflect the views of said parties.
- 
- Riot Games does not endorse or sponsor this project. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
- 
- 
- 
-[discord-shield]: https://img.shields.io/discord/860288779558715402?color=7289da&label=Support&logo=discord&logoColor=7289da&style=for-the-badge
-[discord-url]: https://discord.gg/uGuswsZwAT
-[discord-banner]: https://discordapp.com/api/guilds/860288779558715402/widget.png?style=banner2
-[license-shield]: https://img.shields.io/github/license/colinhartigan/valorant-rpc?style=for-the-badge
-[license-url]: https://github.com/colinhartigan/valorant-rpc/blob/v3/LICENSE.txt
+The app stores its runtime config under:
 
-[stars-shield]: https://img.shields.io/github/stars/colinhartigan/valorant-rpc?logo=github&style=for-the-badge
-[stars-url]: https://github.com/colinhartigan/valorant-rpc/stargazers
+```text
+%APPDATA%\valorant-rpc\config.json
+```
 
-[releases-shield]: https://img.shields.io/github/downloads/colinhartigan/valorant-rpc/total?style=for-the-badge
-[releases-url]: https://github.com/colinhartigan/valorant-rpc/releases
+Useful options:
 
-[language-shield]: https://img.shields.io/github/languages/top/colinhartigan/valorant-rpc?logo=python&logoColor=yellow&style=for-the-badge
-[language-url]: https://www.python.org/
+- `region`: auto-detected on first launch when possible.
+- `presence_refresh_interval`: Discord presence refresh interval in seconds.
+- `presences.menu.show_rank_in_comp_lobby`: show rank while waiting in competitive lobby.
+- `presences.modes.all.large_image`: choose `map`, `agent`, or `rank`.
+- `presences.modes.all.small_image`: choose `map`, `agent`, or `rank`.
+- `presences.menu.show_join_button_with_open_party`: show a join button for open parties.
+- `presences.menu.allow_join_requests`: show a request button for closed parties.
+- `webserver.port`: local confirmation server port, default `4100`.
 
-[kofi-shield]: https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white
-[kofi-url]: https://ko-fi.com/colinh
+Join links are disabled by default. Enable them only if you want Discord buttons that open a local confirmation page.
 
+## Secure Join Flow
 
+Discord buttons can only open URLs, so the app never performs a Riot action directly from a Discord click.
+
+The secured flow is:
+
+1. Discord opens `http://127.0.0.1:<port>/valorant/confirm/...`.
+2. The local page shows the party and region.
+3. The user confirms with a form button.
+4. The form sends a token-gated `POST` to the local server.
+5. The local server validates token, region, identifiers, and origin before calling Riot.
+
+The token is per run and is not placed in the Discord button URL.
+
+## Build
+
+```powershell
+.\build.bat
+```
+
+The build script installs dependencies and runs:
+
+```powershell
+python -m PyInstaller valorant-rpc.spec --clean --noconfirm
+```
+
+The generated executable is written to `dist/`. The PyInstaller spec packages `favicon.ico` only; runtime RPC images come from Valorant-API URLs.
+
+## Tests
+
+```powershell
+python -B -m unittest discover -v
+```
+
+The `-B` flag avoids recreating Python bytecode files during test runs.
+
+Current coverage includes:
+
+- config creation, migration, and corruption recovery
+- Valorant content loading and cache fallback
+- partial Riot presence payloads
+- Discord RPC image URL sanitization
+- systray shutdown behavior
+- secured local join/request flow
+- prevention of old local Discord asset keys
+
+## Troubleshooting
+
+### Discord presence does not show
+
+- Make sure the Discord desktop app is running.
+- Restart the app from the tray icon.
+- Check `%APPDATA%\valorant-rpc\rpc.log`.
+
+### VALORANT region is wrong
+
+- Start VALORANT once, then restart the RPC.
+- If auto-detection fails, edit `region` in the config file.
+
+### Images are missing or Discord shows a blank placeholder
+
+- The app only sends HTTP(S) Valorant-API image URLs to Discord.
+- If Valorant-API is temporarily unavailable, the app falls back to cached content.
+- If no valid URL exists, the app sends no image instead of an old local asset key.
+
+### Join button opens a page but the action is rejected
+
+- Confirm the region shown on the page matches your client.
+- Make sure the app is still running locally.
+- Check that the local port is not blocked or already used by another app.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
+
+## Release Checklist
+
+See [RELEASE.md](RELEASE.md) before publishing an executable or tag.
+
+## Credits
+
+- Original project by [colinhartigan](https://github.com/colinhartigan/valorant-rpc)
+- Maintained fork with fixes for current VALORANT API behavior
+
+## Disclaimer
+
+This project is not affiliated with Riot Games or any of its employees and therefore does not reflect the views of said parties.
+
+Riot Games does not endorse or sponsor this project. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE.txt](LICENSE.txt).

@@ -10,6 +10,8 @@ Locales = {
             "presences": "presences",
             "menu": "menu",
             "show_rank_in_comp_lobby": "show_rank_in_comp_lobby",
+            "show_join_button_with_open_party": "show_join_button_with_open_party",
+            "allow_join_requests": "allow_join_requests",
             "modes": "modes",
             "all": "all",
             "small_image": "small_image",
@@ -21,6 +23,9 @@ Locales = {
             "presence_timeout": "presence_timeout",
             "show_github_link": "show_github_link",
             "auto_launch_skincli": "auto_launch_skincli",
+            "update_repository": "update_repository",
+            "webserver": "webserver",
+            "port": "port",
             "agent": "agent",
             "rank": "rank",
             "map": "map",
@@ -101,6 +106,10 @@ Locales = {
             "startup": {
                 "loading": "Loading",
                 "view_github": "View on GitHub",
+            },
+            "buttons": {
+                "join_party": "Join Party",
+                "request_join": "Request Join",
             }
         },
     },
