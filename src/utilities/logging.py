@@ -1,4 +1,4 @@
-import logging, os, pathlib
+import logging, os
 from .filepath import Filepath
 
 class Logger:

@@ -1,11 +1,7 @@
 from pypresence import Presence as PyPresence
 from pypresence.exceptions import InvalidPipe
 from InquirerPy.utils import color_print
-import time, traceback, ctypes, ssl
-
-ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-ssl_context.check_hostname = False
-ssl_context.verify_mode = ssl.CERT_NONE
+import time, traceback, ctypes
 
 from ..content.content_loader import Loader
 from ..localization.localization import Localizer

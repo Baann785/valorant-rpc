@@ -1,5 +1,4 @@
 import psutil
-import os
 
 class Processes:
 

@@ -1,6 +1,7 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock
 
+import src.utilities.systray as systray_module
 from src.utilities.systray import Systray
 
 
@@ -19,8 +20,13 @@ class SystrayTests(unittest.TestCase):
         tray = Systray(None, {}, on_exit=lambda: calls.append("exit"))
         tray.systray = FakeTrayIcon()
 
-        with patch("src.utilities.systray.os._exit") as forced_exit:
+        forced_exit = Mock()
+        original_exit = getattr(systray_module.os, "_exit")
+        try:
+            setattr(systray_module.os, "_exit", forced_exit)
             tray.exit()
+        finally:
+            setattr(systray_module.os, "_exit", original_exit)
 
         self.assertFalse(tray.systray.visible)
         self.assertTrue(tray.systray.stopped)

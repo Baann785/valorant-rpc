@@ -15,7 +15,7 @@ from .presence.presence import Presence
 
 from .webserver import server
 
-# weird console window management stuff
+# Console window management for the Windows tray application.
 kernel32 = ctypes.WinDLL('kernel32')
 user32 = ctypes.WinDLL('user32')
 hWnd = kernel32.GetConsoleWindow()
@@ -172,10 +172,10 @@ class Startup:
             Startup.clear_line()
             color_print([("Cyan", "["),("White",f"{presence_timer}"),("Cyan", f"] {Localizer.get_localized_text('prints','startup','waiting_for_presence')}")])
             presence_timer += 1
-            # Check if we've exceeded the timeout for Discord presence detection
+            # Check if Riot presence has been unavailable for too long.
             if presence_timer >= presence_timeout:
                 print()
-                color_print([("Red", f"Timed out waiting for Discord Presence after {presence_timeout} seconds.")])
+                color_print([("Red", f"Timed out waiting for Riot Presence after {presence_timeout} seconds.")])
                 return False
             time.sleep(1)
         return False
